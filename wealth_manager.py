@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-💎 Personal Wealth Command Center - v2.4 Smooth UX Edition
+💎 Personal Wealth Command Center - v2.5 UX Patch Edition
 =============================================================
-修復與優化：
-1. 🛠️ 修復表格無法編輯的問題 (移除干擾的 rerun，重構渲染順序)
-2. ⚡ 快捷記帳升級：選擇項目後，可自由修改金額再新增
-3. 💾 保持完美的 JSON 本地自動存檔
+優化項目：
+1. 💡 增加表格刪除的明確操作提示。
+2. ↩️ 新增「復原最後一筆 (Undo)」功能：快捷記帳按錯可一鍵撤銷。
+3. 🗑️ 新增「清空所有紀錄」功能：方便每個月底重新開始。
 
 Author: Pro Trader AI (Powered by Gemini)
 """
@@ -95,11 +95,50 @@ COMMON_EXPENSES = {
 }
 
 # ============================================
-# 🖥️ 主畫面 Tabs 渲染
+# 📱 側邊欄 (Sidebar)
+# ============================================
+st.sidebar.title("💎 Wealth Manager")
+st.sidebar.caption("v2.5 | 極致體驗版")
+st.sidebar.divider()
+
+total_expenses = st.session_state.expense_df['金額'].sum() if not st.session_state.expense_df.empty else 0
+f = st.session_state.finances
+total_assets = f['bank_cash'] + f['put_capital'] + f['put_profits'] + f['voo_holdings']
+budget = f['monthly_budget']
+remaining_budget = budget - total_expenses
+budget_used_pct = min(total_expenses / budget, 1.0) if budget > 0 else 1.0
+
+st.sidebar.markdown("### 🏦 本月財務快照")
+st.sidebar.metric("本月總收入", f"HK$ {f['salary']:,.0f}")
+st.sidebar.metric("預定月供投資", f"HK$ {f['voo_monthly']:,.0f}")
+st.sidebar.divider()
+
+st.sidebar.markdown("### 🎯 本月消費預算")
+st.sidebar.metric("設定總預算", f"HK$ {budget:,.0f}")
+
+if budget_used_pct < 0.8:
+    st.sidebar.success(f"已花費: HK$ {total_expenses:,.0f} ({budget_used_pct*100:.0f}%)")
+    st.sidebar.progress(budget_used_pct)
+    st.sidebar.metric("剩餘 Quota", f"HK$ {remaining_budget:,.0f}", delta="狀態健康", delta_color="normal")
+elif budget_used_pct < 1.0:
+    st.sidebar.warning(f"已花費: HK$ {total_expenses:,.0f} ({budget_used_pct*100:.0f}%)")
+    st.sidebar.progress(budget_used_pct)
+    st.sidebar.metric("剩餘 Quota", f"HK$ {remaining_budget:,.0f}", delta="即將超支", delta_color="off")
+else:
+    st.sidebar.error(f"已花費: HK$ {total_expenses:,.0f} (爆表!)")
+    st.sidebar.progress(1.0)
+    st.sidebar.metric("剩餘 Quota", f"HK$ {remaining_budget:,.0f}", delta="已經超支", delta_color="inverse")
+
+real_free_cash = f['salary'] - f['voo_monthly'] - total_expenses
+st.sidebar.divider()
+st.sidebar.markdown("### 💵 月底結算預估")
+st.sidebar.metric("預估可存入銀行現金", f"HK$ {real_free_cash:,.0f}", help="扣除月供和目前支出後，真正能存下來的錢。")
+
+# ============================================
+# 🖥️ 主畫面 Tabs
 # ============================================
 st.title("💎 個人財富指揮中心 (Wealth Command Center)")
 
-f = st.session_state.finances
 tabs = st.tabs(["🧾 每月記帳與預算", "📊 總資產管理", "🚀 8年財富推算"])
 
 # ----------------- TAB 1: 記帳 -----------------
@@ -109,6 +148,7 @@ with tabs[0]:
     
     with col_inc:
         st.subheader("📥 資金流設定")
+        st.info("💡 輸入數字後按 Enter 即自動保存。請勿輸入逗號。")
         st.number_input("本月總薪金 (Income)", value=int(f['salary']), step=1000, key="in_salary", on_change=update_salary)
         st.number_input("本月預定月供 (VOO)", value=int(f['voo_monthly']), step=1000, key="in_voo", on_change=update_voo_monthly)
         st.markdown("---")
@@ -116,14 +156,12 @@ with tabs[0]:
         st.number_input("本月消費預算上限", value=int(f['monthly_budget']), step=500, key="in_budget", on_change=update_budget)
     
     with col_exp:
-        # ✅ 修復 2: 快捷記帳加入「可修改金額」欄位
         st.markdown("### ⚡ 快捷記帳 (Quick Add)")
         c_q1, c_q2, c_q3 = st.columns([2, 1, 1])
         with c_q1:
             quick_selection = st.selectbox("選擇預設項目", list(COMMON_EXPENSES.keys()))
         with c_q2:
             default_amt = float(COMMON_EXPENSES[quick_selection]["金額"])
-            # 讓用戶可以在按下新增前，自由修改金額
             quick_amt = st.number_input("修改金額 (HK$)", value=default_amt, step=10.0)
         with c_q3:
             st.markdown("<br>", unsafe_allow_html=True)
@@ -139,17 +177,31 @@ with tabs[0]:
                 st.rerun()
 
         st.divider()
-        st.markdown("### 🛒 逐筆支出紀錄 (直接點擊表格編輯)")
+        st.markdown("### 🛒 逐筆支出紀錄")
         
-        # 顯示預算警告
-        current_total = st.session_state.expense_df['金額'].sum() if not st.session_state.expense_df.empty else 0
-        rem_budget = f['monthly_budget'] - current_total
-        if rem_budget >= 0:
-            st.success(f"**本月預算還剩 HK$ {rem_budget:,.0f}，繼續保持！**")
+        # 💡 新增的提示與快捷操作按鈕
+        st.info("💡 **如何手動刪除特定項目？** 點擊表格最左側的「灰色行號」（整行會反白），然後按鍵盤的 `Delete` 或 `Backspace` 鍵。")
+        
+        col_btn1, col_btn2, _ = st.columns([2, 2, 5])
+        with col_btn1:
+            if st.button("↩️ 復原最後一筆 (Undo)"):
+                if not st.session_state.expense_df.empty:
+                    # 刪除最新加入的第一行
+                    st.session_state.expense_df = st.session_state.expense_df.iloc[1:].reset_index(drop=True)
+                    save_data()
+                    st.rerun()
+        with col_btn2:
+            if st.button("🗑️ 清空所有紀錄", type="secondary"):
+                st.session_state.expense_df = pd.DataFrame(columns=['日期', '類別', '項目', '金額'])
+                save_data()
+                st.rerun()
+        
+        if remaining_budget > 0:
+            st.success(f"**本月預算還剩 HK$ {remaining_budget:,.0f}，繼續保持！**")
         else:
-            st.error(f"**警告！本月已超支 HK$ {abs(rem_budget):,.0f}！**")
+            st.error(f"**警告！本月已超支 HK$ {abs(remaining_budget):,.0f}！請控制消費！**")
         
-        # ✅ 修復 1: 互動式表格 (移除了干擾編輯的 rerun)
+        # 互動式數據表
         edited_df = st.data_editor(
             st.session_state.expense_df,
             column_config={
@@ -163,12 +215,10 @@ with tabs[0]:
             key="expense_editor"
         )
         
-        # 只有當數據真的發生變化時，才在背景存檔 (不觸發 rerun，保護鼠標焦點)
         if not edited_df.equals(st.session_state.expense_df):
             st.session_state.expense_df = edited_df
             save_data()
             
-        # 即時繪製圓餅圖 (使用最新的 edited_df)
         updated_total = edited_df['金額'].sum() if not edited_df.empty else 0
         if updated_total > 0:
             st.markdown(f"### 📊 支出結構分析 (總花費: HK$ {updated_total:,.0f})")
@@ -237,39 +287,13 @@ with tabs[2]:
     fig2.update_layout(template='plotly_dark', title="8 年財富增長雪球圖", xaxis_title="時間 (月)", yaxis_title="港幣 (HK$)", hovermode="x unified")
     st.plotly_chart(fig2, use_container_width=True)
 
-# ============================================
-# 📱 側邊欄 (Sidebar) - 放最後渲染以確保讀取最新數據
-# ============================================
-st.sidebar.title("💎 Wealth Manager")
-st.sidebar.caption("v2.4 | 極致流暢版")
-st.sidebar.divider()
-
-final_total_exp = st.session_state.expense_df['金額'].sum() if not st.session_state.expense_df.empty else 0
-budget = f['monthly_budget']
-rem_budget = budget - final_total_exp
-used_pct = min(final_total_exp / budget, 1.0) if budget > 0 else 1.0
-
-st.sidebar.markdown("### 🏦 本月財務快照")
-st.sidebar.metric("本月總收入", f"HK$ {f['salary']:,.0f}")
-st.sidebar.metric("預定月供投資", f"HK$ {f['voo_monthly']:,.0f}")
-st.sidebar.divider()
-
-st.sidebar.markdown("### 🎯 預算消耗進度")
-st.sidebar.metric("設定總預算", f"HK$ {budget:,.0f}")
-
-if used_pct < 0.8:
-    st.sidebar.success(f"已花費: HK$ {final_total_exp:,.0f} ({used_pct*100:.0f}%)")
-    st.sidebar.progress(used_pct)
-    st.sidebar.metric("剩餘 Quota", f"HK$ {rem_budget:,.0f}", delta="狀態健康", delta_color="normal")
-elif used_pct < 1.0:
-    st.sidebar.warning(f"已花費: HK$ {final_total_exp:,.0f} ({used_pct*100:.0f}%)")
-    st.sidebar.progress(used_pct)
-    st.sidebar.metric("剩餘 Quota", f"HK$ {rem_budget:,.0f}", delta="即將超支", delta_color="off")
-else:
-    st.sidebar.error(f"已花費: HK$ {final_total_exp:,.0f} (爆表!)")
-    st.sidebar.progress(1.0)
-    st.sidebar.metric("剩餘 Quota", f"HK$ {rem_budget:,.0f}", delta="已經超支", delta_color="inverse")
-
-st.sidebar.divider()
-st.sidebar.markdown("### 💵 月底結算預估")
-st.sidebar.metric("預估可存入銀行現金", f"HK$ {f['salary'] - f['voo_monthly'] - final_total_exp:,.0f}", help="扣除月供和目前支出後，真正能存下來的錢。")
+    st.subheader("📅 年度里程碑 (Yearly Milestones)")
+    yearly_df = df_proj[df_proj['Month'] % 12 == 0].copy()
+    yearly_df['Year'] = [f"第 {i+1} 年" for i in range(len(yearly_df))]
+    
+    display_df = yearly_df[['Year', 'Monthly_Investment', 'VOO_Value', 'Put_Value', 'Total_Net_Worth']].copy()
+    for col in ['VOO_Value', 'Put_Value', 'Total_Net_Worth']:
+        display_df[col] = display_df[col].apply(lambda x: f"HK$ {x:,.0f}")
+    display_df['Monthly_Investment'] = display_df['Monthly_Investment'].apply(lambda x: f"HK$ {x:,.0f}")
+    display_df.columns = ['年份', '該年月供金額', 'VOO 預估市值', 'Short Put 預估市值', '總資產']
+    st.dataframe(display_df, hide_index=True, use_container_width=True)
