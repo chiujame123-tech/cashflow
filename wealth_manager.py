@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-💎 Personal Wealth Command Center - v2.7 Cascading Menu Edition
+💎 Personal Wealth Command Center - v2.8 Blueprint Edition
 =============================================================
 優化項目：
-1. 🗂️ 快捷記帳升級為「兩級連動選單」：先選分類，再選項目，版面更整潔。
-2. 延續實時存檔、預算控制與流暢 UX 體驗。
+1. 🗺️ 於推算引擎 (Tab 3) 完美嵌入「8 年加薪與月供專屬藍圖」。
+2. 延續實時存檔、預算控制與雙層連動選單的極致體驗。
 
 Author: Pro Trader AI (Powered by Gemini)
 """
@@ -112,7 +112,7 @@ EXPENSE_CATEGORIES = {
 # 📱 側邊欄 (Sidebar)
 # ============================================
 st.sidebar.title("💎 Wealth Manager")
-st.sidebar.caption("v2.7 | 雙層分類體驗版")
+st.sidebar.caption("v2.8 | 專屬藍圖版")
 st.sidebar.divider()
 
 total_expenses = st.session_state.expense_df['金額'].sum() if not st.session_state.expense_df.empty else 0
@@ -171,18 +171,13 @@ with tabs[0]:
     
     with col_exp:
         st.markdown("### ⚡ 快捷記帳 (Quick Add)")
-        
-        # 🆕 改用 4 個欄位來裝兩級選單
         c_q1, c_q2, c_q3, c_q4 = st.columns([1.5, 2, 1.2, 1.5])
         
         with c_q1:
-            # 第一級：選擇大分類
             sel_cat = st.selectbox("1️⃣ 消費分類", list(EXPENSE_CATEGORIES.keys()))
         with c_q2:
-            # 第二級：根據大分類動態顯示具體項目
             sel_item = st.selectbox("2️⃣ 具體項目", list(EXPENSE_CATEGORIES[sel_cat].keys()))
         with c_q3:
-            # 第三級：帶入預設金額並允許修改
             default_amt = float(EXPENSE_CATEGORIES[sel_cat][sel_item]["金額"])
             quick_amt = st.number_input("3️⃣ 金額 (HK$)", value=default_amt, step=10.0)
         with c_q4:
@@ -273,6 +268,22 @@ with tabs[1]:
 # ----------------- TAB 3: 8年推算 -----------------
 with tabs[2]:
     st.header("🚀 財富軌跡推算 (Road to 6 Million)")
+    
+    # === 🗺️ 新增的專屬藍圖區塊 ===
+    with st.expander("🗺️ 展開查看：你的 8 年加薪與投資專屬藍圖", expanded=True):
+        st.markdown("""
+        * **階段一 (2026.02 - 2026.05 | 4個月)：** 人工 56k ➡️ 每月供 **20k** (共 8萬)
+        * **階段二 (2026.06 - 2027.05 | 12個月)：** 人工 62k ➡️ 每月供 **23k** (共 27.6萬)
+        * **階段三 (2027.06 - 2028.05 | 12個月)：** 人工 65k ➡️ 每月供 **24.5k** (共 29.4萬)
+        * **階段四 (2028.06 - 2029.05 | 12個月)：** 人工 68k ➡️ 每月供 **26k** (共 31.2萬)
+        * 🔥 **階段五 (2029.06 - 2034.02 | 56個月)：** 人工 105k ➡️ 每月供高達 **44.5k** (共 249.2萬)
+        
+        💰 **8 年累積投入 VOO 總本金：約 HK$ 345.4 萬**
+        """)
+    # ===============================
+
+    st.markdown("調整下方的預期回報率，看看 8 年後的終局：")
+    
     col_rate1, col_rate2 = st.columns(2)
     voo_rate = col_rate1.slider("VOO 預期年化回報率 (%)", min_value=4.0, max_value=15.0, value=10.0, step=0.5)
     put_rate = col_rate2.slider("Short Put 預期年化回報率 (%)", min_value=5.0, max_value=20.0, value=12.0, step=0.5)
@@ -301,7 +312,7 @@ with tabs[2]:
     fig2.add_trace(go.Scatter(x=df_proj['Month'], y=df_proj['Total_Net_Worth'], mode='lines', name='總資產', line=dict(color='cyan', width=3)))
     fig2.add_trace(go.Scatter(x=df_proj['Month'], y=df_proj['VOO_Value'], mode='lines', name='VOO 累積市值', line=dict(color='#00CC96', width=2)))
     fig2.add_trace(go.Scatter(x=df_proj['Month'], y=df_proj['Put_Value'], mode='lines', name='Short Put 累積市值', line=dict(color='#636EFA', width=2)))
-    fig2.add_vline(x=40, line_dash="dash", line_color="yellow", annotation_text="🚀 2029 加薪", annotation_position="top left")
+    fig2.add_vline(x=40, line_dash="dash", line_color="yellow", annotation_text="🚀 2029 人工跳升 105k", annotation_position="top left")
     fig2.update_layout(template='plotly_dark', title="8 年財富增長雪球圖", xaxis_title="時間 (月)", yaxis_title="港幣 (HK$)", hovermode="x unified")
     st.plotly_chart(fig2, use_container_width=True)
 
