@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-💎 Personal Wealth Command Center - v2.6
+💎 Personal Wealth Command Center - v2.7 Cascading Menu Edition
 =============================================================
 優化項目：
-1. ⚡ 擴充快捷記帳 (Quick Add) 選單：新增「信用卡卡數」與「其他」選項。
-2. 延續之前所有的流暢 UX 與自動存檔功能。
+1. 🗂️ 快捷記帳升級為「兩級連動選單」：先選分類，再選項目，版面更整潔。
+2. 延續實時存檔、預算控制與流暢 UX 體驗。
 
 Author: Pro Trader AI (Powered by Gemini)
 """
@@ -84,24 +84,35 @@ def update_put_prof(): st.session_state.finances['put_profits'] = st.session_sta
 def update_voo_hold(): st.session_state.finances['voo_holdings'] = st.session_state.in_voo_hold; save_data()
 
 # ============================================
-# ⚡ 常用開銷字典 (擴充版)
+# ⚡ 結構化分類字典 (兩級選單用)
 # ============================================
-COMMON_EXPENSES = {
-    "☕ 買咖啡 (預設 $35)": {"類別": "飲食 🍔", "項目": "買咖啡", "金額": 35.0},
-    "🍱 食晏/Lunch (預設 $60)": {"類別": "飲食 🍔", "項目": "Lunch", "金額": 60.0},
-    "🥩 食晚飯/Dinner (預設 $150)": {"類別": "飲食 🍔", "項目": "Dinner", "金額": 150.0},
-    "🚇 搭車/MTR (預設 $15)": {"類別": "交通 🚇", "項目": "搭車", "金額": 15.0},
-    "🚕 搭的士 (預設 $80)": {"類別": "交通 🚇", "項目": "搭的士", "金額": 80.0},
-    "🛒 超市買餸 (預設 $200)": {"類別": "購物 🛍️", "項目": "超市買餸", "金額": 200.0},
-    "💳 信用卡找數/Credit Card (預設 $1000)": {"類別": "居住/帳單 🏠", "項目": "信用卡卡數", "金額": 1000.0},  # 🆕 新增
-    "❓ 其他/Others (預設 $100)": {"類別": "其他 ❓", "項目": "其他支出", "金額": 100.0}               # 🆕 新增
+EXPENSE_CATEGORIES = {
+    "飲食 🍔": {
+        "☕ 買咖啡 ($35)": {"項目": "買咖啡", "金額": 35.0},
+        "🍱 食晏/Lunch ($60)": {"項目": "Lunch", "金額": 60.0},
+        "🥩 食晚飯/Dinner ($150)": {"項目": "Dinner", "金額": 150.0},
+    },
+    "交通 🚇": {
+        "🚇 搭車/MTR ($15)": {"項目": "搭車", "金額": 15.0},
+        "🚕 搭的士 ($80)": {"項目": "搭的士", "金額": 80.0},
+    },
+    "居住/帳單 🏠": {
+        "📱 電話費/上網費 ($100)": {"項目": "電話/上網費", "金額": 100.0},
+        "💳 信用卡卡數 ($1000)": {"項目": "信用卡卡數", "金額": 1000.0},
+    },
+    "購物 🛍️": {
+        "🛒 超市買餸 ($200)": {"項目": "超市買餸", "金額": 200.0},
+    },
+    "其他 ❓": {
+        "❓ 其他支出 ($100)": {"項目": "其他支出", "金額": 100.0}
+    }
 }
 
 # ============================================
 # 📱 側邊欄 (Sidebar)
 # ============================================
 st.sidebar.title("💎 Wealth Manager")
-st.sidebar.caption("v2.6 | 擴充選單版")
+st.sidebar.caption("v2.7 | 雙層分類體驗版")
 st.sidebar.divider()
 
 total_expenses = st.session_state.expense_df['金額'].sum() if not st.session_state.expense_df.empty else 0
@@ -160,19 +171,27 @@ with tabs[0]:
     
     with col_exp:
         st.markdown("### ⚡ 快捷記帳 (Quick Add)")
-        c_q1, c_q2, c_q3 = st.columns([2, 1, 1])
+        
+        # 🆕 改用 4 個欄位來裝兩級選單
+        c_q1, c_q2, c_q3, c_q4 = st.columns([1.5, 2, 1.2, 1.5])
+        
         with c_q1:
-            quick_selection = st.selectbox("選擇預設項目", list(COMMON_EXPENSES.keys()))
+            # 第一級：選擇大分類
+            sel_cat = st.selectbox("1️⃣ 消費分類", list(EXPENSE_CATEGORIES.keys()))
         with c_q2:
-            default_amt = float(COMMON_EXPENSES[quick_selection]["金額"])
-            quick_amt = st.number_input("修改金額 (HK$)", value=default_amt, step=10.0)
+            # 第二級：根據大分類動態顯示具體項目
+            sel_item = st.selectbox("2️⃣ 具體項目", list(EXPENSE_CATEGORIES[sel_cat].keys()))
         with c_q3:
+            # 第三級：帶入預設金額並允許修改
+            default_amt = float(EXPENSE_CATEGORIES[sel_cat][sel_item]["金額"])
+            quick_amt = st.number_input("3️⃣ 金額 (HK$)", value=default_amt, step=10.0)
+        with c_q4:
             st.markdown("<br>", unsafe_allow_html=True)
             if st.button("➕ 寫入表格", type="primary", use_container_width=True):
                 new_row = pd.DataFrame([{
                     "日期": datetime.today().date(), 
-                    "類別": COMMON_EXPENSES[quick_selection]["類別"], 
-                    "項目": COMMON_EXPENSES[quick_selection]["項目"], 
+                    "類別": sel_cat, 
+                    "項目": EXPENSE_CATEGORIES[sel_cat][sel_item]["項目"], 
                     "金額": float(quick_amt)
                 }])
                 st.session_state.expense_df = pd.concat([new_row, st.session_state.expense_df], ignore_index=True)
