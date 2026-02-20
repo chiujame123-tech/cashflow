@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-💎 Personal Wealth Command Center - v2.2 Pro Storage Edition
+💎 Personal Wealth Command Center - v2.3 Auto-Save Edition
 =============================================================
-新增與優化功能：
-1. 💾 自動存檔機制 (JSON Local Storage)：重整網頁/關閉電腦，資料不再流失！
-2. ⚡ 快捷記帳面板 (Quick Add)：內建常用開銷，一鍵自動填入記帳表。
-3. 🎯 預算控制與資產管理完美融合。
+終極優化：
+1. ✨ 實時自動存檔 (Real-time Auto-Save)：拔除所有手動儲存按鈕，輸入即存檔，不怕 F5 重整。
+2. ⚡ 完善的快捷記帳 (Quick Add) 與互動式表格。
 
 Author: Pro Trader AI (Powered by Gemini)
 """
@@ -19,15 +18,14 @@ import json
 import os
 
 # ============================================
-# 💾 資料庫存取系統 (Data Persistence)
+# 💾 資料庫存取系統 (JSON Local Storage)
 # ============================================
 DATA_FILE = "wealth_data.json"
 
 def save_data():
-    """將目前的狀態存入 JSON 檔案"""
+    """無感實時存檔：將目前的狀態存入 JSON 檔案"""
     exp_df = st.session_state.expense_df.copy()
     if not exp_df.empty:
-        # 將日期格式轉換為字串以便存入 JSON
         exp_df['日期'] = pd.to_datetime(exp_df['日期']).dt.strftime('%Y-%m-%d')
     
     data_to_save = {
@@ -38,23 +36,13 @@ def save_data():
         json.dump(data_to_save, f, ensure_ascii=False, indent=4)
 
 def load_data():
-    """從 JSON 檔案讀取資料"""
+    """啟動時讀取存檔"""
     if os.path.exists(DATA_FILE):
         try:
             with open(DATA_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                finances = data.get('finances', {})
-                expenses = data.get('expenses', [])
-                
-                exp_df = pd.DataFrame(expenses)
-                if not exp_df.empty:
-                    exp_df['日期'] = pd.to_datetime(exp_df['日期']).dt.date
-                else:
-                    exp_df = pd.DataFrame(columns=['日期', '類別', '項目', '金額'])
-                    
-                return finances, exp_df
-        except Exception as e:
-            st.error(f"讀取存檔失敗: {e}")
+                return data.get('finances', {}), data.get('expenses', [])
+        except Exception:
             pass
     return None, None
 
@@ -63,14 +51,12 @@ def load_data():
 # ============================================
 st.set_page_config(page_title="Wealth Command Center", page_icon="💎", layout="wide")
 
-# 啟動時自動讀取存檔
 saved_finances, saved_expenses = load_data()
 
 if 'finances' not in st.session_state:
     if saved_finances:
         st.session_state.finances = saved_finances
     else:
-        # 預設初始值
         st.session_state.finances = {
             'salary': 56000,          
             'voo_monthly': 20000,     
@@ -82,38 +68,44 @@ if 'finances' not in st.session_state:
         }
 
 if 'expense_df' not in st.session_state:
-    if saved_expenses is not None:
-        st.session_state.expense_df = saved_expenses
+    if saved_expenses:
+        df = pd.DataFrame(saved_expenses)
+        df['日期'] = pd.to_datetime(df['日期']).dt.date
+        st.session_state.expense_df = df
     else:
         st.session_state.expense_df = pd.DataFrame(columns=['日期', '類別', '項目', '金額'])
 
-def update_finances(key, value):
-    """更新財務數據並立即存檔"""
-    st.session_state.finances[key] = value
-    save_data()
+# --- Callback 函數：當輸入框數字改變時，立即更新並存檔 ---
+def update_salary(): st.session_state.finances['salary'] = st.session_state.in_salary; save_data()
+def update_voo_monthly(): st.session_state.finances['voo_monthly'] = st.session_state.in_voo; save_data()
+def update_budget(): st.session_state.finances['monthly_budget'] = st.session_state.in_budget; save_data()
 
-# 常用開銷字典 (給 Quick Add 使用)
+def update_bank(): st.session_state.finances['bank_cash'] = st.session_state.in_bank; save_data()
+def update_put_cap(): st.session_state.finances['put_capital'] = st.session_state.in_put_cap; save_data()
+def update_put_prof(): st.session_state.finances['put_profits'] = st.session_state.in_put_prof; save_data()
+def update_voo_hold(): st.session_state.finances['voo_holdings'] = st.session_state.in_voo_hold; save_data()
+
+# ============================================
+# ⚡ 常用開銷字典 (Quick Add)
+# ============================================
 COMMON_EXPENSES = {
     "☕ 買咖啡 ($35)": {"類別": "飲食 🍔", "項目": "買咖啡", "金額": 35.0},
     "🍱 食晏/Lunch ($60)": {"類別": "飲食 🍔", "項目": "Lunch", "金額": 60.0},
     "🥩 食晚飯/Dinner ($150)": {"類別": "飲食 🍔", "項目": "Dinner", "金額": 150.0},
     "🚇 搭車/MTR ($15)": {"類別": "交通 🚇", "項目": "搭車", "金額": 15.0},
-    "🚕 的士/的士 ($80)": {"類別": "交通 🚇", "項目": "搭的士", "金額": 80.0},
+    "🚕 搭的士 ($80)": {"類別": "交通 🚇", "項目": "搭的士", "金額": 80.0},
     "🛒 超市買餸 ($200)": {"類別": "購物 🛍️", "項目": "超市買餸", "金額": 200.0},
-    "📱 電話費/月費 ($100)": {"類別": "居住/帳單 🏠", "項目": "電話/上網費", "金額": 100.0}
+    "📱 電話/上網費 ($100)": {"類別": "居住/帳單 🏠", "項目": "電話/上網費", "金額": 100.0}
 }
 
 # ============================================
 # 📱 側邊欄 (Sidebar)
 # ============================================
 st.sidebar.title("💎 Wealth Manager")
-st.sidebar.caption("v2.2 | 自動存檔 & 預算控制版")
+st.sidebar.caption("v2.3 | 實時自動存檔版")
 st.sidebar.divider()
 
-# 計算動態總支出
-current_expense_df = st.session_state.expense_df
-total_expenses = current_expense_df['金額'].sum() if not current_expense_df.empty else 0
-
+total_expenses = st.session_state.expense_df['金額'].sum() if not st.session_state.expense_df.empty else 0
 f = st.session_state.finances
 total_assets = f['bank_cash'] + f['put_capital'] + f['put_profits'] + f['voo_holdings']
 budget = f['monthly_budget']
@@ -125,7 +117,6 @@ st.sidebar.metric("本月總收入", f"HK$ {f['salary']:,.0f}")
 st.sidebar.metric("預定月供投資", f"HK$ {f['voo_monthly']:,.0f}")
 st.sidebar.divider()
 
-# 🎯 側邊欄預算監控 (視覺化)
 st.sidebar.markdown("### 🎯 本月消費預算")
 st.sidebar.metric("設定總預算", f"HK$ {budget:,.0f}")
 
@@ -152,7 +143,7 @@ st.sidebar.metric("預估可存入銀行現金", f"HK$ {real_free_cash:,.0f}", h
 # ============================================
 st.title("💎 個人財富指揮中心 (Wealth Command Center)")
 
-tabs = st.tabs(["🧾 每月記帳與預算 (Budget Tracker)", "📊 總資產管理 (Asset Manager)", "🚀 8年財富推算 (Projection)"])
+tabs = st.tabs(["🧾 每月記帳與預算", "📊 總資產管理", "🚀 8年財富推算"])
 
 # ============================================
 # 🧾 TAB 1: 每月記帳與預算
@@ -164,41 +155,32 @@ with tabs[0]:
     
     with col_inc:
         st.subheader("📥 資金流設定")
-        new_salary = st.number_input("本月總薪金 (Income)", value=int(f['salary']), step=1000)
-        new_voo_monthly = st.number_input("本月預定月供 (VOO)", value=int(f['voo_monthly']), step=1000)
-        new_budget = st.number_input("本月消費預算 (Budget)", value=int(f['monthly_budget']), step=500)
-        
-        if st.button("更新設定與存檔", type="primary"):
-            update_finances('salary', new_salary)
-            update_finances('voo_monthly', new_voo_monthly)
-            update_finances('monthly_budget', new_budget)
-            st.success("✅ 設定已更新並存檔！")
-            st.rerun()
+        st.info("💡 提示：輸入數字後按 Enter 即自動保存。請勿輸入逗號。")
+        st.number_input("本月總薪金 (Income)", value=int(f['salary']), step=1000, key="in_salary", on_change=update_salary)
+        st.number_input("本月預定月供 (VOO)", value=int(f['voo_monthly']), step=1000, key="in_voo", on_change=update_voo_monthly)
+        st.markdown("---")
+        st.markdown("### 🎯 設定消費目標")
+        st.number_input("本月消費預算上限 (Budget)", value=int(f['monthly_budget']), step=500, key="in_budget", on_change=update_budget)
     
     with col_exp:
-        # ⚡ 快捷記帳 UI
         st.markdown("### ⚡ 快捷記帳 (Quick Add)")
         c_quick1, c_quick2 = st.columns([3, 1])
         with c_quick1:
-            quick_selection = st.selectbox("選擇常用開銷 (一鍵加入表格)", list(COMMON_EXPENSES.keys()) + ["-- 手動在下方表格輸入 --"])
+            quick_selection = st.selectbox("選擇常用開銷 (一鍵加入下方表格)", list(COMMON_EXPENSES.keys()) + ["-- 手動在下方表格輸入 --"])
         with c_quick2:
-            st.markdown("<br>", unsafe_allow_html=True) # 排版對齊
+            st.markdown("<br>", unsafe_allow_html=True)
             if st.button("➕ 新增", type="primary", use_container_width=True):
                 if quick_selection != "-- 手動在下方表格輸入 --":
                     item_data = COMMON_EXPENSES[quick_selection]
                     new_row = pd.DataFrame([{
-                        "日期": datetime.today().date(),
-                        "類別": item_data["類別"],
-                        "項目": item_data["項目"],
-                        "金額": item_data["金額"]
+                        "日期": datetime.today().date(), "類別": item_data["類別"], "項目": item_data["項目"], "金額": item_data["金額"]
                     }])
-                    # 把新的一筆加到最上面
                     st.session_state.expense_df = pd.concat([new_row, st.session_state.expense_df], ignore_index=True)
-                    save_data() # 立即存檔
+                    save_data() 
                     st.rerun()
 
         st.divider()
-        st.markdown("### 🛒 逐筆支出紀錄 (手動編輯區)")
+        st.markdown("### 🛒 逐筆支出紀錄")
         if remaining_budget > 0:
             st.success(f"**本月預算還剩 HK$ {remaining_budget:,.0f}，繼續保持！**")
         else:
@@ -218,10 +200,9 @@ with tabs[0]:
             key="expense_editor"
         )
         
-        # 檢測是否有手動編輯，若有則自動存檔
         if not edited_df.equals(st.session_state.expense_df):
             st.session_state.expense_df = edited_df
-            save_data() # 手動修改後自動存檔
+            save_data()
             st.rerun()
             
         updated_total_expense = edited_df['金額'].sum() if not edited_df.empty else 0
@@ -233,7 +214,7 @@ with tabs[0]:
             st.plotly_chart(fig_exp, use_container_width=True)
 
 # ============================================
-# 📊 TAB 2: 總資產管理 (Asset Manager)
+# 📊 TAB 2: 總資產管理
 # ============================================
 with tabs[1]:
     st.header("📊 資產配置與編輯")
@@ -255,24 +236,15 @@ with tabs[1]:
             
     with col2:
         st.subheader("📝 編輯資產部位")
-        st.info("請在此更新你的銀行與券商最新結餘，總資產將自動計算並永久保存。")
+        st.info("💡 直接更改數字，按 Enter 或點擊空白處即自動存檔 (無需按儲存按鈕)。請勿輸入逗號。")
         
-        with st.form("asset_update_form"):
-            new_bank = st.number_input("🏦 銀行活期存款 (HK$)", value=int(f['bank_cash']), step=5000)
-            new_put_cap = st.number_input("💸 Short Put 資本 (HK$)", value=int(f['put_capital']), step=10000)
-            new_put_prof = st.number_input("📈 Short Put 累積利潤 (HK$)", value=int(f['put_profits']), step=1000)
-            new_voo = st.number_input("🛡️ VOO 累積總市值 (HK$)", value=int(f['voo_holdings']), step=5000)
-            
-            if st.form_submit_button("💾 儲存並更新總資產", type="primary"):
-                update_finances('bank_cash', new_bank)
-                update_finances('put_capital', new_put_cap)
-                update_finances('put_profits', new_put_prof)
-                update_finances('voo_holdings', new_voo)
-                st.success("✅ 資產資料已成功存檔！")
-                st.rerun()
+        st.number_input("🏦 銀行活期存款 (HK$)", value=int(f['bank_cash']), step=5000, key="in_bank", on_change=update_bank)
+        st.number_input("💸 Short Put 資本 (HK$)", value=int(f['put_capital']), step=10000, key="in_put_cap", on_change=update_put_cap)
+        st.number_input("📈 Short Put 累積利潤 (HK$)", value=int(f['put_profits']), step=1000, key="in_put_prof", on_change=update_put_prof)
+        st.number_input("🛡️ VOO 累積總市值 (HK$)", value=int(f['voo_holdings']), step=5000, key="in_voo_hold", on_change=update_voo_hold)
 
 # ============================================
-# 🚀 TAB 3: 8年財富推算 (Projection)
+# 🚀 TAB 3: 8年財富推算
 # ============================================
 with tabs[2]:
     st.header("🚀 財富軌跡推算 (Road to 6 Million)")
